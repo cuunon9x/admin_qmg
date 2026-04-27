@@ -6,6 +6,8 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import pg from 'pg'
 import { v2 as cloudinary } from 'cloudinary'
+import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -37,6 +39,8 @@ let CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET
 const CLOUDINARY_FOLDER = process.env.CLOUDINARY_FOLDER || 'qmg/products'
 const UPLOAD_RATE_LIMIT_WINDOW_MS = Number(process.env.UPLOAD_RATE_LIMIT_WINDOW_MS || 60_000)
 const UPLOAD_RATE_LIMIT_MAX = Number(process.env.UPLOAD_RATE_LIMIT_MAX || 10)
+const API_RATE_LIMIT_WINDOW_MS = Number(process.env.API_RATE_LIMIT_WINDOW_MS || 60_000)
+const API_RATE_LIMIT_MAX = Number(process.env.API_RATE_LIMIT_MAX || 120)
 
 if ((!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) && CLOUDINARY_URL) {
   try {
@@ -84,11 +88,21 @@ async function initDb() {
 }
 
 const app = express()
+app.set('trust proxy', 1)
 
+app.use(helmet())
 app.use(cors({
   origin: CORS_ORIGIN === '*' ? true : CORS_ORIGIN,
 }))
 app.use(express.json({ limit: '2mb' }))
+
+const apiLimiter = rateLimit({
+  windowMs: API_RATE_LIMIT_WINDOW_MS,
+  max: API_RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' },
+})
 
 function requireAdminApiKey(req, res, next) {
   if (!ADMIN_API_KEY) return next()
@@ -161,6 +175,7 @@ app.get('/api/health', async (_req, res, next) => {
   }
 })
 
+app.use('/api', apiLimiter)
 app.use('/api', requireAdminApiKey)
 
 // GET all products
@@ -265,6 +280,7 @@ initDb()
       console.log(`   CORS origin     →  ${CORS_ORIGIN}`)
       console.log(`   API key guard   →  ${ADMIN_API_KEY ? 'enabled' : 'disabled'}`)
       console.log(`   Upload limit    →  ${UPLOAD_RATE_LIMIT_MAX}/${UPLOAD_RATE_LIMIT_WINDOW_MS}ms`)
+      console.log(`   API limit       →  ${API_RATE_LIMIT_MAX}/${API_RATE_LIMIT_WINDOW_MS}ms`)
       console.log('   Storage         →  Postgres + Cloudinary\n')
     })
   })

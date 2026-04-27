@@ -27,6 +27,8 @@ Environment variables:
 - `CLOUDINARY_URL` (recommended, single variable)
   - or use `CLOUDINARY_CLOUD_NAME` + `CLOUDINARY_API_KEY` + `CLOUDINARY_API_SECRET`
 - `CLOUDINARY_FOLDER` (default `qmg/products`)
+- `API_RATE_LIMIT_WINDOW_MS` (default `60000`)
+- `API_RATE_LIMIT_MAX` (default `120`)
 - `UPLOAD_RATE_LIMIT_WINDOW_MS` (default `60000`)
 - `UPLOAD_RATE_LIMIT_MAX` (default `10`)
 
