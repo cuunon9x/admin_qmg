@@ -21,11 +21,43 @@ Default API: `http://localhost:3001`
 Environment variables:
 - `PORT` (Render set automatically)
 - `CORS_ORIGIN` (ex: `https://your-frontend-domain.com`)
-- `DATA_DIR` (default `./data`)
-- `UPLOAD_DIR` (default `./uploads/products`)
-- `UPLOAD_PUBLIC_PATH` (default `/uploads/products`)
+- `ADMIN_API_KEY` (optional but recommended; require `x-admin-api-key` on `/api/*`)
+- `DATABASE_URL` (Postgres connection string)
+- `DB_SSL` (`true` on Render/Supabase/Neon)
+- `CLOUDINARY_URL` (recommended, single variable)
+  - or use `CLOUDINARY_CLOUD_NAME` + `CLOUDINARY_API_KEY` + `CLOUDINARY_API_SECRET`
+- `CLOUDINARY_FOLDER` (default `qmg/products`)
+- `UPLOAD_RATE_LIMIT_WINDOW_MS` (default `60000`)
+- `UPLOAD_RATE_LIMIT_MAX` (default `10`)
 
 ## Important note
 
-Filesystem on Render may be ephemeral on restart/redeploy.
-For production, use a real database + cloud object storage for images.
+This server now uses Postgres for products/categories and Cloudinary for images.
+No local file persistence is required on Render.
+
+## Quick setup checklist
+
+1. Create Postgres project (Supabase or Neon) and copy `DATABASE_URL`.
+2. Create Cloudinary account and copy API credentials.
+3. Add all env vars on Render service.
+4. Set frontend env:
+   - `VITE_API_URL=https://admin-qmg.onrender.com`
+   - `VITE_ADMIN_API_KEY=<same-as-ADMIN_API_KEY>`
+
+## Health check
+
+- `GET /api/health` (public, no API key) to verify server + DB are up.
+
+## Seed data from existing JSON
+
+From `server/` run:
+
+- `npm run seed`
+
+Default seed sources:
+- `../src/data/products.json`
+- `../src/data/categories.json`
+
+Optional overrides via env:
+- `SEED_PRODUCTS_PATH=relative/path/to/products.json`
+- `SEED_CATEGORIES_PATH=relative/path/to/categories.json`
