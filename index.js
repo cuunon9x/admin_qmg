@@ -178,11 +178,56 @@ app.get('/api/health', async (_req, res, next) => {
 app.use('/api', apiLimiter)
 app.use('/api', requireAdminApiKey)
 
-// GET all products
-app.get('/api/products', async (_req, res, next) => {
+// GET products (optionally paginated/search by query params)
+app.get('/api/products', async (req, res, next) => {
   try {
     const { rows } = await pool.query('SELECT data FROM products ORDER BY id ASC')
-    res.json(rows.map(r => r.data))
+    const products = rows.map(r => r.data)
+
+    const page = Number(req.query.page || 1)
+    const pageSize = Number(req.query.pageSize || 20)
+    const search = String(req.query.search || '').trim().toLowerCase()
+    const category = String(req.query.category || '').trim()
+
+    const hasQuery =
+      Number.isFinite(page) && Number.isFinite(pageSize) &&
+      (Boolean(search) || Boolean(category) || req.query.page !== undefined || req.query.pageSize !== undefined)
+
+    if (!hasQuery) return res.json(products)
+
+    let filtered = products
+    if (category && category !== 'all') {
+      filtered = filtered.filter((p) => p?.category === category)
+    }
+    if (search) {
+      filtered = filtered.filter((p) => {
+        const tags = Array.isArray(p?.tags) ? p.tags.join(' ') : (p?.tags || '')
+        const bucket = [
+          p?.name,
+          p?.slug,
+          p?.badge,
+          p?.subcatLabel,
+          p?.subcat,
+          tags,
+        ].filter(Boolean).join(' ').toLowerCase()
+        return bucket.includes(search)
+      })
+    }
+
+    const safePageSize = Math.min(Math.max(pageSize || 20, 1), 100)
+    const total = filtered.length
+    const totalPages = Math.max(1, Math.ceil(total / safePageSize))
+    const safePage = Math.min(Math.max(page || 1, 1), totalPages)
+    const start = (safePage - 1) * safePageSize
+    const items = filtered.slice(start, start + safePageSize)
+
+    res.json({
+      items,
+      total,
+      page: safePage,
+      pageSize: safePageSize,
+      totalPages,
+    })
   } catch (err) {
     next(err)
   }
