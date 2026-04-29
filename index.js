@@ -8,6 +8,7 @@ import pg from 'pg'
 import { v2 as cloudinary } from 'cloudinary'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
+import { sendResendEmail } from './lib/resend.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -105,6 +106,8 @@ const apiLimiter = rateLimit({
 })
 
 function requireAdminApiKey(req, res, next) {
+  // Public endpoint for site contact forms (no admin key)
+  if (req.originalUrl && req.originalUrl.startsWith('/api/send-email')) return next()
   if (!ADMIN_API_KEY) return next()
   const incomingKey = req.headers['x-admin-api-key']
   if (incomingKey !== ADMIN_API_KEY) return res.status(401).json({ error: 'Unauthorized' })
@@ -177,6 +180,18 @@ app.get('/api/health', async (_req, res, next) => {
 
 app.use('/api', apiLimiter)
 app.use('/api', requireAdminApiKey)
+
+// ── Public send email (Resend) ─────────────────────────────
+// Used by frontend contact/checkout forms.
+app.post('/api/send-email', async (req, res, next) => {
+  try {
+    const { subject, fields } = req.body || {}
+    const result = await sendResendEmail({ subject, fields })
+    res.json({ ok: true, id: result?.id || null })
+  } catch (err) {
+    next(err)
+  }
+})
 
 // GET products (optionally paginated/search by query params)
 app.get('/api/products', async (req, res, next) => {
