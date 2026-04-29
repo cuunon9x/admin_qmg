@@ -34,6 +34,7 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN || '*'
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY || ''
 const DATABASE_URL = process.env.DATABASE_URL
 const CLOUDINARY_URL = process.env.CLOUDINARY_URL
+const CLOUDINARY_VIDEO_FOLDER = process.env.CLOUDINARY_VIDEO_FOLDER || 'qmg/videos'
 let CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME
 let CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY
 let CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET
@@ -124,6 +125,16 @@ const upload = multer({
   },
 })
 
+// ── Video upload ──────────────────────────────────────────────
+const uploadVideo = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: Number(process.env.VIDEO_UPLOAD_MAX_MB || 25) * 1024 * 1024 }, // default 25MB
+  fileFilter: (_, file, cb) => {
+    if (file.mimetype.startsWith('video/')) cb(null, true)
+    else cb(new Error('Chỉ chấp nhận file video'))
+  },
+})
+
 function uploadToCloudinary(fileBuffer, originalName) {
   const ext = path.extname(originalName).replace('.', '') || 'jpg'
   return new Promise((resolve, reject) => {
@@ -131,6 +142,24 @@ function uploadToCloudinary(fileBuffer, originalName) {
       {
         folder: CLOUDINARY_FOLDER,
         resource_type: 'image',
+        format: ext,
+      },
+      (err, result) => {
+        if (err) reject(err)
+        else resolve(result)
+      },
+    )
+    stream.end(fileBuffer)
+  })
+}
+
+function uploadVideoToCloudinary(fileBuffer, originalName) {
+  const ext = path.extname(originalName).replace('.', '') || 'mp4'
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: CLOUDINARY_VIDEO_FOLDER,
+        resource_type: 'video',
         format: ext,
       },
       (err, result) => {
@@ -283,6 +312,17 @@ app.post('/api/upload', uploadRateLimit, upload.single('image'), async (req, res
   if (!req.file) return res.status(400).json({ error: 'Không có file' })
   try {
     const result = await uploadToCloudinary(req.file.buffer, req.file.originalname)
+    res.json({ url: result.secure_url, publicId: result.public_id })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// POST upload video → Cloudinary
+app.post('/api/upload-video', uploadRateLimit, uploadVideo.single('video'), async (req, res, next) => {
+  if (!req.file) return res.status(400).json({ error: 'Không có file' })
+  try {
+    const result = await uploadVideoToCloudinary(req.file.buffer, req.file.originalname)
     res.json({ url: result.secure_url, publicId: result.public_id })
   } catch (err) {
     next(err)
