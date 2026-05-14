@@ -44,9 +44,19 @@ function readJsonArray(filePath, name) {
   return content
 }
 
+function readCategoriesSeedIfPresent() {
+  if (!fs.existsSync(sourceCategoriesPath)) {
+    console.warn(
+      `No categories seed file at ${sourceCategoriesPath} — skipping category seed (categories in DB are left unchanged).`,
+    )
+    return []
+  }
+  return readJsonArray(sourceCategoriesPath, 'categories')
+}
+
 async function main() {
   const products = readJsonArray(sourceProductsPath, 'products')
-  const categories = readJsonArray(sourceCategoriesPath, 'categories')
+  const categories = readCategoriesSeedIfPresent()
 
   const { Pool } = pg
   const pool = new Pool({
@@ -73,7 +83,10 @@ async function main() {
     `)
 
     await client.query('DELETE FROM products')
-    await client.query('DELETE FROM categories')
+
+    if (categories.length) {
+      await client.query('DELETE FROM categories')
+    }
 
     let nextId = 1
     for (const item of products) {
@@ -96,9 +109,11 @@ async function main() {
     }
 
     await client.query('COMMIT')
-    console.log(`Seeded ${products.length} products and ${categories.length} categories.`)
+    console.log(`Seeded ${products.length} products${categories.length ? ` and ${categories.length} categories` : ''}.`)
     console.log(`Products source: ${sourceProductsPath}`)
-    console.log(`Categories source: ${sourceCategoriesPath}`)
+    if (categories.length) {
+      console.log(`Categories source: ${sourceCategoriesPath}`)
+    }
   } catch (err) {
     await client.query('ROLLBACK')
     throw err
